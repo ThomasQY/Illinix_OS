@@ -1,0 +1,86 @@
+IDT initialize:
+    The idt 15 system_resevered exception is missing when initializing idt, so when
+    calling idt_test in kernel.c, The system crashes.
+
+    Missing idt 1, the second exception when initializing idt, so when running idt_test,
+    it will always go to and print error message for idt 15
+
+PAGING initialize:
+    The pte[0xB8] was not set when initializing paging but instead setting pte[0x00]. That
+    is not correct because the page will not be corresponding to the pde[1] for the video
+    Memory.Since pte[0] is pointing to the start of the video memory so the video memory
+    plus the pte index, should be 0xB8 to find the correct location of pte, then use the
+    pte value to find the correct memory, so pte[0xB8] should be initialize instead of
+    pte[0]
+
+KEYBOARD initialize:
+    No response on the screen when pressing keys. Wrong understanding of send_eoi().
+    Putting send_eoi(21) instead of send_eoi(1), the function uses index for the number
+    Interrupts instead of the index in the idt. In addition, send_eoi() to the wrong port
+    Should send to port 0x20 for the data port, but sending to port 0x21 as the command
+    port.
+
+    When pressing keyboard, only the first character would be printed on the screen.
+    send_eoi() to the wrong port. Should send to port 0x20 for the data port, but sending
+    to port 0x21, which is the command port.
+
+
+
+RTC initialize:
+    No RTC interrupts in. That's because we only enabled the slave port for the RTC but
+    Not the master port, then all the all interrupts are not able to go through PIC.
+    In addition, sending EOI only to the slave but not the master, so only slave knows
+    It self is done but the master does not know slave is done.
+
+    It's still wrong, because we are sending to 0x21 instead of 0x20, we have to change the variable
+    from 7 t 8. and change > to >=.
+TERMINAL-CURSOR bugs:
+    The behavior is that the screen becomes pink and could not type anything anymore. The
+    reason is that we did no notice that outb(), and inb() are different from the system
+    outb() and inb() by reverting the two parameters.
+KEYBOARD bugs:
+    The behavior is that when pressing keyboard fast, some character would echo twice and
+    some would not print on the screen. The reason is that when reading the keyboard input
+    we called inb() twice, so will result in some unknown behavior.
+File system:
+    When we needed to calculate a pointer's address, we needed to cast the pointer to the
+    an integer and then do the calculation. If we do calculation without cast the pointer
+    type to an integer, each plus 1 will add 4096 on the pointer. It will cause the page
+    fault since it blow up the kernel memory.(Reference Benny's Lecture)
+
+    When do memory copy, the size to copy should be in bytes instead of the number of the
+    blocks. Otherwise, it will blow up the kernel memory and cause the par fault.
+
+    When calculate the index of the inode, we need to skip the boot block, so we should
+    add one to when find the inode. Otherwise the last block of data will not be printed.
+
+    We should not compare the unsigned variable with with -1.
+
+
+    Checkpoint 3:
+      Compiler error:
+        1.typedef cause compiler panic(does not recognize member of struct), use typedef instead;
+        2.asm volatile syntax error
+        3.same variable name in function and global scope
+        4.pass uint8 as movl parameter
+      system_call : execute:
+        1. get executable name, infinite loop, change loop condition
+        2.use "=r" instead of "=m" in asm volatile
+        3. clobber esp,ebp in inline assembly in execute
+        4. increment next pid before tss.esp0 is calculated
+        5. set 0x80 to interrupt gate instead of trap gate, disabling interrupts
+        6. haven't flush TLB after page reload
+	7. Map physical address of first process to the wrong page 
+
+Checkpoint4:
+	Everything covered in Checkpoint3.
+
+Checkpoint5:
+	1. Esp and Ebp was not stored and restored correctly so when system is booted, it crashes. We do not understood the reason of swap esp and ebb at first, swapping esp and ebp and then return will go to the other stored stack and return to the other process.
+	2. After remapping video memory pages, the keyboard was not typing to the correct place. Keyboard should always echo to the screen we are looking, so we let the pit handler switch the pages and when a keyboard handler was invoked, we replace everything with current x, y, curser, and video paging map to video card. At the end of keyboard interrupt, we restore everything back and reset the paging.
+	3. When enter was pressed, the cursor was not shown to the correct place. We had an enter flag that will become 1 when enter is pressed, and the terminal read function will exit an infinity loop. We figured that we need 3 of those for each terminal so when one enter was pressed, we would not be pressing enter in other terminals.
+	4. Only three shells would work but no other processes. The fourth one would result in a page fault. When we have shell running other processes, we remap the paging wrong thinking that only using the number of terminal ids instead of the process ids. Changing that fixed the problem.
+	5. When spamming, sometimes, will print no such command on the screen. The way we solve that is that we have a keyboard buffer ptr to points to the current place for writing next character in the buffer. We should replace that when terminal read exits the while 1 loop. Spamming could replace the current running buffer_ptrs with other buffer ptrs.
+	6. When fish halts, we did not closed the user vid memory, resulting the user memory to exist after fish. 
+
+

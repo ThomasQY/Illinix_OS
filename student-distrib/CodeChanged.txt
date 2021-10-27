@@ -1,0 +1,5 @@
+boot.S line 28:  
+    lgdt gdt_desc_ptr
+
+x86_desc.S:
+    gdt_desc_ptr added
